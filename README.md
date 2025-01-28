@@ -2,6 +2,6 @@
 Collection of Ansible Playbooks that I use to manage my servers.
 
 # Update servers
-`ansible-playbook -i inventory.ini update.yml -kK`
+ansible-playbook -i inventory.ini update.yml --ask-become-pass -u USERNAME
 
-*Note: -kK will ask for password for ssh and root user.*
+use `-l GROUP` to limit to only a specific group inside the inventory.ini file.
