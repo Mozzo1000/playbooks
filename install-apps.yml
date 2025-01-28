@@ -1,0 +1,9 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: Update apt cache and make sure btop is installed
+      apt:
+        name: "{{ item }}"
+        update_cache: yes
+      loop:
+        - btop
