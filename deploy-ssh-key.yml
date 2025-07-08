@@ -3,6 +3,8 @@
   become: true
   vars:
     ssh_public_key: "{{ lookup('file', 'keys/id_rsa.pub') }}"
+    ssh_config_path: "/etc/ssh/sshd_config"
+    cloud_init_path: "/etc/ssh/sshd_config.d/50-cloud-init.conf" # In Ubuntu 24.04, there is conflicting configuration in this file
   vars_files:
     - secrets.yml
 
@@ -20,3 +22,40 @@
         user: "{{ target_user }}"
         state: present
         key: "{{ ssh_public_key }}"
+
+    - name: Set PubkeyAuthentication to yes
+      lineinfile:
+        path: "{{ ssh_config_path }}"
+        regexp: '^#?PubkeyAuthentication\s+'
+        line: 'PubkeyAuthentication yes'
+        state: present
+        validate: '/usr/sbin/sshd -t -f %s'
+
+    - name: Disable root login over SSH
+      lineinfile:
+        path: "{{ ssh_config_path }}"
+        regexp: '^#?PermitRootLogin\s+'
+        line: 'PermitRootLogin no'
+        state: present
+        validate: '/usr/sbin/sshd -t -f %s'
+    
+    - name: Disable PasswordAuthentication
+      lineinfile:
+        path: "{{ ssh_config_path }}"
+        regexp: '^#?PasswordAuthentication\s+'
+        line: 'PasswordAuthentication no'
+        state: present
+        validate: '/usr/sbin/sshd -t -f %s'
+
+    - name: Disable PasswordAuthentication in 50-cloud-init.conf
+      lineinfile:
+        path: "{{ cloud_init_path }}"
+        regexp: '^#?PasswordAuthentication\s+'
+        line: 'PasswordAuthentication no'
+        state: present
+        validate: '/usr/sbin/sshd -t -f %s'
+
+    - name: Restart SSH service to apply changes
+      service:
+        name: ssh
+        state: restarted
