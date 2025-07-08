@@ -1,0 +1,6 @@
+- import_playbook: update.yml
+- import_playbook: deploy-ssh-key.yml
+- import_playbook: install-apps.yml
+- import_playbook: install-docker.yml
+- import_playbook: install-newt.yml
+- import_playbook: add-aliases.yml
