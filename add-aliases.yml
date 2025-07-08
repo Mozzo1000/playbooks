@@ -1,0 +1,28 @@
+- name: Add aliases to user's bash_aliases
+  hosts: all
+  become: true
+  vars_files:
+    - secrets.yml
+  vars:
+    alias_file: "/home/{{ target_user }}/.bash_aliases"
+    custom_aliases:
+      - 'alias update="sudo apt update && sudo apt upgrade"'
+
+  tasks:
+    - name: Ensure .bash_aliases exists
+      file:
+        path: "{{ alias_file }}"
+        state: touch
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+        mode: '0644'
+
+    - name: Add custom aliases to bash_aliases
+      lineinfile:
+        path: "{{ alias_file }}"
+        line: "{{ item }}"
+        state: present
+        insertafter: EOF
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+      loop: "{{ custom_aliases }}"
