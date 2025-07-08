@@ -1,0 +1,22 @@
+- name: Deploy SSH key to servers
+  hosts: all
+  become: true
+  vars:
+    ssh_public_key: "{{ lookup('file', 'keys/id_rsa.pub') }}"
+  vars_files:
+    - secrets.yml
+
+  tasks:
+    - name: Ensure .ssh directory exists
+      file:
+        path: "/home/{{ target_user }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ target_user }}"
+        group: "{{ target_user }}"
+
+    - name: Deploy SSH public key
+      authorized_key:
+        user: "{{ target_user }}"
+        state: present
+        key: "{{ ssh_public_key }}"
