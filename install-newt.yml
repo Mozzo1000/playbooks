@@ -1,0 +1,38 @@
+---
+- name: Install Newt client manually
+  hosts: all
+  become: true
+  vars:
+    newt_url: "https://github.com/fosrl/newt/releases/download/1.2.1/newt_linux_amd64"
+    newt_dest: "/usr/local/bin/newt"
+
+  tasks:
+    - name: Check if Newt is already installed
+      stat:
+        path: "{{ newt_dest }}"
+      register: newt_binary
+
+    - name: Exit if Newt is already installed
+      meta: end_play
+      when: newt_binary.stat.exists
+      tags: skip_if_present
+
+    - name: Download Newt binary
+      get_url:
+        url: "{{ newt_url }}"
+        dest: /tmp/newt
+        mode: '0755'
+
+    - name: Move Newt to /usr/local/bin
+      command: mv /tmp/newt "{{ newt_dest }}"
+      args:
+        creates: "{{ newt_dest }}"
+
+    - name: Verify Newt installation
+      command: newt --version
+      register: newt_ver
+      changed_when: false
+
+    - name: Display installed Newt version
+      debug:
+        msg: "Newt client installed successfully: {{ newt_ver.stdout }}"
