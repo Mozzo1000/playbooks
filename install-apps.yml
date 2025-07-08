@@ -1,9 +1,10 @@
 - hosts: all
   become: yes
   tasks:
-    - name: Update apt cache and make sure btop is installed
+    - name: Update apt cache and make sure necessary apps are installed
       apt:
         name: "{{ item }}"
         update_cache: yes
       loop:
         - btop
+        - qemu-guest-agent
