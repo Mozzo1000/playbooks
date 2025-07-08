@@ -1,0 +1,42 @@
+- name: Install Docker CE on Ubuntu
+  hosts: all
+  become: true
+  vars-files:
+    - secrets.yml
+
+  tasks:
+    - name: Install required dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - software-properties-common
+        state: present
+        update_cache: true
+
+    - name: Add Docker's official GPG key
+      ansible.builtin.shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+        gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/docker-archive-keyring.gpg
+
+    - name: Add Docker repository
+      ansible.builtin.shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+        https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" |
+        tee /etc/apt/sources.list.d/docker.list > /dev/null
+      args:
+        creates: /etc/apt/sources.list.d/docker.list
+
+    - name: Update APT and install Docker CE
+      apt:
+        name: docker-ce
+        state: present
+        update_cache: true
+
+    - name: Add user to Docker group
+      user:
+        name: "{{ target_user }}"
+        groups: docker
+        append: yes
