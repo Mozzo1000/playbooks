@@ -1,7 +1,7 @@
 - name: Install Docker CE on Ubuntu
   hosts: all
   become: true
-  vars-files:
+  vars_files:
     - secrets.yml
 
   tasks:
