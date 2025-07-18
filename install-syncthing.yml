@@ -1,0 +1,33 @@
+---
+- name: Install Syncthing from official PPA
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Syncthing release GPG key
+      get_url:
+        url: https://syncthing.net/release-key.gpg
+        dest: /etc/apt/keyrings/syncthing-archive-keyring.gpg
+        mode: '0644'
+
+    - name: Add Syncthing repository to APT sources
+      copy:
+        dest: /etc/apt/sources.list.d/syncthing.list
+        content: |
+          deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable
+        mode: '0644'
+
+    - name: Update APT cache
+      apt:
+        update_cache: yes
+
+    - name: Install Syncthing
+      apt:
+        name: syncthing
+        state: present
