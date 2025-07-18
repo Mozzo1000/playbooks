@@ -1,0 +1,111 @@
+- name: Deploy reboot notification script
+  hosts: all
+  become: yes
+  vars_files:
+    - secrets.yml
+  vars:
+    ntfy_topic: "{{ntfy_topic}}"  # Change this to your preferred topic
+    ntfy_server: "https://ntfy.sh"
+    script_path: "/usr/local/bin/notify-reboot-required.sh"
+    notification_flag_file: "/tmp/reboot-notification-sent"
+    
+  tasks:
+    - name: Ensure curl is installed
+      apt:
+        name: curl
+        state: present
+        update_cache: yes
+
+    - name: Create reboot notification script
+      copy:
+        content: |
+          #!/bin/bash
+          # Reboot notification script - deployed via Ansible
+          
+          REBOOT_FILE="/var/run/reboot-required"
+          NOTIFICATION_SENT_FILE="{{ notification_flag_file }}"
+          NTFY_TOPIC="{{ ntfy_topic }}"
+          NTFY_SERVER="{{ ntfy_server }}"
+          
+          # Configuration
+          HOSTNAME=$(hostname)
+          SERVER_IP=$(hostname -I | awk '{print $1}')
+          
+          if [ -f "$REBOOT_FILE" ] && [ ! -f "$NOTIFICATION_SENT_FILE" ]; then
+              # Get packages that require reboot
+              PACKAGES=""
+              if [ -f "/var/run/reboot-required.pkgs" ]; then
+                  PACKAGES=$(cat /var/run/reboot-required.pkgs | tr '\n' ' ')
+              fi
+              
+              # Get uptime
+              UPTIME=$(uptime -p)
+              
+              # Prepare detailed message
+              MESSAGE="Server $HOSTNAME ($SERVER_IP) requires a reboot after recent updates.
+          
+          Current uptime: $UPTIME
+          Packages requiring reboot:
+          $PACKAGES
+          
+          "
+              
+              # Send notification with rich formatting
+              curl -s -H "Title: $HOSTNAME Restart Required" \
+                   -H "Priority: high" \
+                   -H "Tags: warning,server,reboot" \
+                   -d "$MESSAGE" \
+                   "$NTFY_SERVER/$NTFY_TOPIC"
+              
+              # Mark notification as sent
+              touch "$NOTIFICATION_SENT_FILE"
+              
+              # Log the notification
+              logger "Reboot notification sent for packages: $PACKAGES"
+          fi
+          
+          # Clean up notification flag if reboot is no longer required
+          if [ ! -f "$REBOOT_FILE" ] && [ -f "$NOTIFICATION_SENT_FILE" ]; then
+              rm "$NOTIFICATION_SENT_FILE"
+              
+              # Send confirmation that reboot is no longer required
+              curl -s -H "Title: ✅ $HOSTNAME Reboot Completed" \
+                   -H "Priority: low" \
+                   -H "Tags: success,server" \
+                   -d "Server $HOSTNAME no longer requires a reboot. System is up to date." \
+                   "$NTFY_SERVER/$NTFY_TOPIC"
+          fi
+        dest: "{{ script_path }}"
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Add cron job for reboot notification check
+      cron:
+        name: "Check for reboot requirement"
+        minute: "*/15"
+        job: "{{ script_path }}"
+        user: root
+        state: present
+
+    - name: Test script execution (dry run)
+      command: "{{ script_path }}"
+      register: script_test
+      changed_when: false
+      failed_when: script_test.rc != 0
+
+    - name: Display script test results
+      debug:
+        msg: "Script executed successfully on {{ inventory_hostname }}"
+      when: script_test.rc == 0
+
+    - name: Clean up any existing notification flags (fresh start)
+      file:
+        path: "{{ notification_flag_file }}"
+        state: absent
+
+  handlers:
+    - name: restart cron
+      service:
+        name: cron
+        state: restarted
