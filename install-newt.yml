@@ -1,38 +1,61 @@
 ---
-- name: Install Newt client manually
+- name: Install or upgrade Newt client
   hosts: all
   become: true
   vars:
-    newt_url: "https://github.com/fosrl/newt/releases/download/1.2.1/newt_linux_amd64"
+    version: "1.3.2"
+    newt_url: "https://github.com/fosrl/newt/releases/download/{{version}}/newt_linux_amd64"
     newt_dest: "/usr/local/bin/newt"
 
   tasks:
-    - name: Check if Newt is already installed
+    - name: Check if Newt binary exists
       stat:
         path: "{{ newt_dest }}"
       register: newt_binary
 
-    - name: Exit if Newt is already installed
-      meta: end_play
+    - name: Get installed Newt version (if present)
+      command: "{{ newt_dest }} --version"
+      register: installed_version_raw
       when: newt_binary.stat.exists
-      tags: skip_if_present
+      changed_when: false
+      failed_when: false
 
-    - name: Download Newt binary
+    - name: Extract installed version number
+      set_fact:
+        installed_version_clean: "{{ installed_version_raw.stdout | regex_search('([0-9]+\\.[0-9]+\\.[0-9]+)', '\\1') }}"
+      when: newt_binary.stat.exists
+
+    - name: Decide if Newt needs updating
+      set_fact:
+        update_newt: "{{ (not newt_binary.stat.exists) or (installed_version_clean is not defined) or (installed_version_clean != version) }}"
+
+    - name: Download Newt {{ version }} binary
       get_url:
         url: "{{ newt_url }}"
         dest: /tmp/newt
         mode: '0755'
+      when: update_newt
 
-    - name: Move Newt to /usr/local/bin
-      command: mv /tmp/newt "{{ newt_dest }}"
-      args:
-        creates: "{{ newt_dest }}"
+    - name: Install or replace Newt binary
+      copy:
+        src: /tmp/newt
+        dest: "{{ newt_dest }}"
+        mode: '0755'
+        force: yes
+        remote_src: true
+      when: update_newt
 
     - name: Verify Newt installation
-      command: newt --version
+      command: "{{ newt_dest }} --version"
       register: newt_ver
       changed_when: false
 
-    - name: Display installed Newt version
+    - name: Show installed Newt version
       debug:
-        msg: "Newt client installed successfully: {{ newt_ver.stdout }}"
+        msg: "Newt version installed: {{ newt_ver.stdout }}"
+    
+    - name: Restart newt.service if Newt was updated
+      service:
+        name: newt
+        state: restarted
+      when: update_newt
